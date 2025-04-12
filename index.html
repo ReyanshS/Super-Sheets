@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Sheets</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+    <style>
+        /* Style the Help button as a question mark icon */
+        #helpButton {
+            background-color: #007bff; /* Blue background */
+            color: white; /* White text */
+            border: none; /* Remove default border */
+            border-radius: 50%; /* Make it circular */
+            width: 32px; /* Set width */
+            height: 32px; /* Set height */
+            font-size: 18px; /* Set font size */
+            font-weight: bold; /* Bold text */
+            text-align: center; /* Center-align text */
+            line-height: 32px; /* Vertically center text */
+            cursor: pointer; /* Pointer cursor on hover */
+            margin-left: 10px; /* Add spacing to the left of the title box */
+            display: inline-flex; /* Align inline with the title box */
+            align-items: center; /* Vertically center the content */
+            justify-content: center; /* Horizontally center the content */
+            transition: background-color 0.3s; /* Smooth hover effect */
+        }
+
+        /* Hover effect for the Help button */
+        #helpButton:hover {
+            background-color: #0056b3; /* Darker blue on hover */
+        }
+
+        /* Dark mode styling for the Help button */
+        body.dark-theme #helpButton {
+            background-color: #28a745; /* Green background */
+            color: white; /* White text */
+        }
+
+        body.dark-theme #helpButton:hover {
+            background-color: #218838; /* Darker green on hover */
+        }
+
+        /* Ensure the title and help button are aligned */
+        .spreadsheet-title {
+            display: flex; /* Use flexbox for alignment */
+            align-items: center; /* Vertically align items */
+        }
+    </style>
+</head>
+<body>
+    <h1>Super Sheets</h1>
+    <div class="header-bar">
+        <div class="spreadsheet-title">
+            <input type="text" id="spreadsheetTitle" placeholder="Enter Spreadsheet Title" />
+            <button id="helpButton" class="help-icon">?</button>
+        </div>
+        <div class="controls">
+            <label id="importCsvLabel">
+                <input type="file" id="csvInput" accept=".csv">
+                Import CSV
+            </label>
+            <button id="exportCsv">Export to CSV</button>
+            <button id="themeToggle">Toggle Dark Theme</button>
+        </div>
+    </div>
+    <div class="spreadsheet-wrapper">
+        <table id="spreadsheet">
+            <thead>
+                <tr id="headers">
+                    <th></th>
+                    <th class="header-cell">A<div class="hover-buttons"><button class="addColumn">+</button><button class="deleteColumn">−</button></div></th>
+                    <th class="header-cell">B<div class="hover-buttons"><button class="addColumn">+</button><button class="deleteColumn">−</button></div></th>
+                    <!-- Add more columns as needed -->
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="row-label">1<div class="hover-buttons"><button class="addRow">+</button><button class="deleteRow">−</button></div></td>
+                    <td contenteditable="true"></td>
+                    <td contenteditable="true"></td>
+                    <!-- Add more cells as needed -->
+                </tr>
+                <!-- Add more rows as needed -->
+            </tbody>
+        </table>
+    </div>
+    <div id="helpModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>How to Use Functions</h2>
+            <p>Here are some examples of functions and their syntaxes you can use within the cells:</p>
+            <ul>
+                <li><strong>Basic Arithmetic:</strong> Use formulas like <code>=A1+B1</code>, <code>=A1-B1</code>, <code>=A1*B1</code>, or <code>=A1/B1</code> for addition, subtraction, multiplication, and division.</li>
+                <li><strong>Aggregate Functions (SUM, MIN, MAX):</strong> Use <code>=SUM(A)</code>, <code>=MIN(A)</code>, or <code>=MAX(A)</code> to calculate the sum, minimum, or maximum of a column. You can also apply these to rows, e.g., <code>=SUM(1)</code>.</li>
+                <li><strong>Repeated Functions:</strong> Use the syntax <code>=B+C*D=>5</code> to apply a formula to multiple rows. Here’s how it works:
+                    <ul>
+                        <li><code>B</code>, <code>C</code>, and <code>D</code> are column references. Replace them with the actual column names you want to use.</li>
+                        <li><code>*</code> and <code>+</code> are arithmetic operators. You can use any combination of operators like <code>+</code>, <code>-</code>, <code>*</code>, or <code>/</code>.</li>
+                        <li><code>=></code> specifies the range of rows to apply the formula to. For example, <code>=B+C*D=>5</code> will apply the formula <code>B+C*D</code> to rows 1 through 5.</li>
+                    </ul>
+                </li>
+                <li><strong>General Functions:</strong> Use formulas like <code>=A+B*C</code> as an example to combine multiple operations. The formula does not need numbers in it; instead, it will take the numbers from the row it is entered in.</li>
+            </ul>
+            <p>Simply type the formula into a cell starting with <code>=</code>, and the result will be calculated automatically.</p>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
