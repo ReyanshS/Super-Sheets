@@ -89,14 +89,13 @@ document.addEventListener("DOMContentLoaded", () => {
         console.log(`Evaluating general formula: ${formula} in cell:`, cell);
 
         try {
-            const rowIndex = cell.parentElement.rowIndex; // Get the row index of the cell
-            const row = spreadsheet.rows[rowIndex]; // Get the row element
-
-            const updatedFormula = formula.replace(/[A-Z]/g, column => {
+            const updatedFormula = formula.replace(/([A-Z])(\d+)/g, (match, column, row) => {
                 const columnIndex = column.charCodeAt(0) - 65 + 1; // Convert column letter to index
-                const referencedCell = row.cells[columnIndex]; // Get the cell in the same row
+                const rowIndex = parseInt(row, 10); // Convert row number to index
+                const referencedRow = spreadsheet.rows[rowIndex]; // Get the referenced row
+                const referencedCell = referencedRow ? referencedRow.cells[columnIndex] : null; // Get the referenced cell
                 const value = referencedCell ? (parseFloat(referencedCell.textContent) || 0) : 0; // Use 0 if the cell is empty
-                console.log(`Extracted value for column ${column} in row ${rowIndex}:`, value);
+                console.log(`Extracted value for ${column}${row}:`, value);
                 return value;
             });
 
@@ -168,11 +167,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 // If the formula starts with SUM, MIN, MAX, or AVG, call evaluateFormula
                 evaluateFormula(cell, formula);
             } else if (/^[A-Z]+\d+([\+\-\*\/][A-Z]+\d+)+$/i.test(formula)) {
-                // If the formula matches an arithmetic pattern (e.g., A1+B1), treat it as an arithmetic formula
-                evaluateFormula(cell, formula);
-            } else {
-                // Otherwise, treat it as a general formula
+                // If the formula matches an arithmetic pattern (e.g., A1+B1), treat it as a general formula
                 evaluateGeneralFormula(cell, formula);
+            } else {
+                // Otherwise, treat it as an unsupported formula
+                console.error(`Unsupported formula syntax: ${formula}`);
+                cell.textContent = "ERROR: Unsupported formula syntax";
             }
         }
 
@@ -347,14 +347,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Function to export the spreadsheet to CSV
     function exportToCsv() {
-        const rows = Array.from(spreadsheet.rows);
-        const csvContent = rows.map((row, rowIndex) => {
-            return Array.from(row.cells)
-                .filter((cell, colIndex) => !(rowIndex === 0 && colIndex === 0)) // Skip the top-left corner cell
-                .filter((cell, colIndex) => rowIndex !== 0 || colIndex > 0) // Skip row labels and column headers
-                .map(cell => cell.textContent.trim()) // Get the text content of each cell
-                .join(","); // Join cells with commas
-        }).join("\n"); // Join rows with newlines
+        const rows = Array.from(spreadsheet.rows).slice(1); // Skip the header row
+        const csvContent = rows
+            .map(row => {
+                return Array.from(row.cells)
+                    .slice(1) // Skip the row label cell
+                    .map(cell => cell.textContent.trim()) // Get the text content of each cell
+                    .join(","); // Join cells with commas
+            })
+            .filter(row => row.trim() !== "") // Remove empty rows
+            .join("\n"); // Join rows with newlines
 
         const blob = new Blob([csvContent], { type: "text/csv" });
         const url = URL.createObjectURL(blob);
@@ -390,14 +392,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 headerRow.appendChild(headerCell);
             }
 
-            // Add rows from the CSV
+            // Add rows from the CSV, excluding headers
             csvContent.forEach((rowValues, rowIndex) => {
                 const newRow = spreadsheet.insertRow();
                 const rowLabel = newRow.insertCell(0);
                 rowLabel.className = "row-label";
                 rowLabel.innerHTML = `${rowIndex + 1}<div class="hover-buttons"><button class="addRow">+</button><button class="deleteRow">−</button></div>`;
 
-                rowValues.forEach(value => {
+                // Add cells for the row, skipping the row label
+                rowValues.forEach((value) => {
                     const newCell = newRow.insertCell();
                     newCell.contentEditable = "true";
                     newCell.textContent = value.trim();
@@ -418,10 +421,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // Event listener for the Import button
     csvInput.addEventListener("change", importFromCsv);
 
-    // Initialize a 7x7 spreadsheet
+    // Initialize an 11x11 spreadsheet
     function initializeSpreadsheet() {
-        for (let i = 1; i <= 7; i++) addColumn(i - 1);
-        for (let i = 1; i <= 7; i++) addRow(i - 1);
+        for (let i = 1; i <= 11; i++) addColumn(i - 1);
+        for (let i = 1; i <= 11; i++) addRow(i - 1);
 
         // Adjust font size for all cells
         Array.from(spreadsheet.getElementsByTagName("td")).forEach(cell => {
