@@ -19,77 +19,66 @@ document.addEventListener("DOMContentLoaded", () => {
         document.body.classList.toggle("dark-theme");
     });
 
-    // Function to evaluate formulas
+    // Function to evaluate formulas, including SUM, MIN, MAX, and AVG for rows and columns
     function evaluateFormula(cell, formula) {
-        console.log(`Evaluating formula: ${formula} in cell:`, cell);
-
         try {
-            // Check if the formula contains SUM, MIN, or MAX
-            const match = formula.match(/(sum|min|max)\((\w+)\)/i);
-            if (match) {
-                console.log(`Detected aggregate function: ${match[1]} with argument: ${match[2]}`);
-                const operation = match[1].toLowerCase(); // sum, min, max
-                const argument = match[2]; // Row number or column letter
+            const updatedFormula = formula.trim().toUpperCase();
 
-                if (!isNaN(argument)) {
-                    console.log(`Processing row-based operation for row: ${argument}`);
-                    const rowIndex = parseInt(argument, 10);
+            // Match SUM, MIN, MAX, or AVG for a column (e.g., SUM(E)) or a row (e.g., SUM(1))
+            const match = updatedFormula.match(/^(SUM|MIN|MAX|AVG)\((\w+)\)$/);
+            if (match) {
+                const operation = match[1]; // SUM, MIN, MAX, or AVG
+                const target = match[2]; // Column letter or row number
+                const values = [];
+
+                if (isNaN(target)) {
+                    // Target is a column (e.g., "E")
+                    const columnIndex = target.charCodeAt(0) - 64; // Convert column letter to index (1-based)
+                    Array.from(spreadsheet.rows).forEach((row, rowIndex) => {
+                        if (rowIndex > 0) { // Skip the header row
+                            const targetCell = row.cells[columnIndex];
+                            if (targetCell) {
+                                const value = parseFloat(targetCell.textContent.trim());
+                                if (!isNaN(value)) {
+                                    values.push(value);
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    // Target is a row (e.g., "1")
+                    const rowIndex = parseInt(target, 10); // Convert row number to index
                     const row = spreadsheet.rows[rowIndex];
                     if (row) {
-                        const values = Array.from(row.cells)
-                            .slice(1) // Skip the row label
-                            .map(cell => parseFloat(cell.textContent) || NaN); // Parse cell values
-                        console.log(`Extracted values from row ${argument}:`, values);
-                        const result = calculate(values, operation);
-                        console.log(`Result of ${operation} for row ${argument}:`, result);
-                        cell.textContent = result !== null ? result : "N/A"; // Display "N/A" if no valid values
-                        return;
-                    } else {
-                        console.error(`Row ${argument} does not exist`);
-                        cell.textContent = "Row does not exist"; // Specific error for invalid row
-                        return;
-                    }
-                } else if (/^[A-Z]+$/i.test(argument)) {
-                    console.log(`Processing column-based operation for column: ${argument}`);
-                    const colIndex = argument.toUpperCase().charCodeAt(0) - 65; // Convert column letter to index
-                    const values = Array.from(spreadsheet.rows)
-                        .slice(1) // Skip the header row
-                        .map(row => {
-                            const cell = row.cells[colIndex + 1]; // Adjust for the row label column
-                            return cell ? parseFloat(cell.textContent) || NaN : NaN; // Parse cell values or use NaN for empty cells
+                        Array.from(row.cells).forEach((targetCell, colIndex) => {
+                            if (colIndex > 0) { // Skip the row label column
+                                const value = parseFloat(targetCell.textContent.trim());
+                                if (!isNaN(value)) {
+                                    values.push(value);
+                                }
+                            }
                         });
-                    console.log(`Extracted values from column ${argument}:`, values);
-                    const result = calculate(values, operation);
-                    console.log(`Result of ${operation} for column ${argument}:`, result);
-                    cell.textContent = result !== null ? result : "N/A"; // Display "N/A" if no valid values
-                    return;
-                } else {
-                    console.error(`Invalid argument in formula: ${argument}`);
-                    cell.textContent = "Invalid argument in formula"; // Specific error for invalid argument
-                    return;
+                    }
                 }
+
+                // Perform the operation
+                let result;
+                if (operation === "SUM") {
+                    result = values.reduce((sum, value) => sum + value, 0);
+                } else if (operation === "MIN") {
+                    result = values.length > 0 ? Math.min(...values) : "N/A";
+                } else if (operation === "MAX") {
+                    result = values.length > 0 ? Math.max(...values) : "N/A";
+                } else if (operation === "AVG") {
+                    console.log(values);
+                    result = values.length > 0 ? (values.reduce((sum, value) => sum + value, 0) / values.length) : "N/A";
+                }
+
+                cell.textContent = result; // Update the cell with the calculated result
+                return;
             }
 
-            // Handle basic arithmetic operations like =A,1+B1
-            console.log(`Processing arithmetic formula: ${formula}`);
-            const updatedFormula = formula.replace(/([A-Z]+)(\d+)/g, (_, column, row) => {
-                const columnIndex = column.toUpperCase().charCodeAt(0) - 65 + 1; // Convert column letter to index
-                const rowIndex = parseInt(row, 10); // Get the row index
-                const referencedCell = spreadsheet.rows[rowIndex]?.cells[columnIndex]; // Get the referenced cell
-                if (!referencedCell) {
-                    throw new Error(`Cell ${column}${row} does not exist`); // Throw an error for missing cell
-                }
-                const cellValue = parseFloat(referencedCell.textContent.trim()); // Extract and parse the cell value
-                console.log(`Extracted value for ${column}${row}:`, cellValue); // Debugging log
-                if (isNaN(cellValue)) {
-                    throw new Error(`Cell ${column}${row} contains invalid data`); // Throw an error for invalid data
-                }
-                return cellValue; // Replace the cell reference with its numeric value
-            });
-            console.log(`Updated formula after replacing cell references: ${updatedFormula}`);
-            const result = eval(updatedFormula);
-            console.log(`Result of arithmetic formula: ${result}`);
-            cell.textContent = result; // Update the cell with the calculated result
+            throw new Error("Unsupported formula syntax");
         } catch (error) {
             console.error(`Error evaluating formula: ${formula}`, error);
             cell.textContent = `Error: ${error.message}`; // Display the error message in the cell
@@ -175,8 +164,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 const operation = rangeMatch[1].trim(); // Extract the operation (e.g., "B+C*D")
                 const targetRow = parseInt(rangeMatch[2], 10); // Extract the target row (e.g., "5")
                 executeOperationInRange(cell, operation, targetRow);
-            } else if (/^(sum|min|max)\(/i.test(formula)) {
-                // If the formula starts with SUM, MIN, or MAX, call evaluateFormula
+            } else if (/^(SUM|MIN|MAX|AVG)\(/i.test(formula)) {
+                // If the formula starts with SUM, MIN, MAX, or AVG, call evaluateFormula
                 evaluateFormula(cell, formula);
             } else if (/^[A-Z]+\d+([\+\-\*\/][A-Z]+\d+)+$/i.test(formula)) {
                 // If the formula matches an arithmetic pattern (e.g., A1+B1), treat it as an arithmetic formula
@@ -215,47 +204,70 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // Add a new row
+    // Add a new row below the clicked row
     function addRow(rowIndex) {
         const newRow = document.createElement("tr");
-        const rowNumber = rowIndex + 1;
-        newRow.innerHTML = `<td class="row-label">${rowNumber}<div class="hover-buttons"><button class="addRow">+</button><button class="deleteRow">−</button></div></td>` +
-            Array.from(headers.cells).slice(1).map(() => '<td contenteditable="true"></td>').join("");
+        const rowNumber = rowIndex + 2; // New row number (1-based index)
 
+        // Create the row label
+        newRow.innerHTML = `<td class="row-label">${rowNumber}<div class="hover-buttons"><button class="addRow">+</button><button class="deleteRow">−</button></div></td>`;
+
+        // Add empty cells for each column in the header row (excluding the row label)
+        const columnCount = spreadsheet.rows[0].cells.length - 1; // Exclude the row label column
+        for (let i = 0; i < columnCount; i++) {
+            const newCell = document.createElement("td");
+            newCell.contentEditable = "true";
+            newRow.appendChild(newCell);
+        }
+
+        // Insert the new row manually
         const rows = Array.from(spreadsheet.tBodies[0].rows);
-        if (rowIndex < rows.length) {
-            spreadsheet.tBodies[0].insertBefore(newRow, rows[rowIndex + 1]);
+        if (rowIndex < rows.length - 1) {
+            rows[rowIndex].after(newRow); // Use `after` to insert the new row below the clicked row
         } else {
-            spreadsheet.tBodies[0].appendChild(newRow);
+            spreadsheet.tBodies[0].appendChild(newRow); // Append to the bottom if it's the last row
         }
 
         updateRowLabels();
         addResizingHandles(); // Reapply resizing handles to include the new row
     }
 
-    // Add a new column
+    // Add a new column to the right of the clicked column
     function addColumn(columnIndex) {
-        const adjustedColumnIndex = columnIndex + 1; // Add 1 to insert to the right of the selected column
+        const adjustedColumnIndex = columnIndex + 1; // Insert at the next index (to the right of the clicked column)
 
+        // Create the new header cell
         const newHeader = document.createElement("th");
+        const columnLabel = String.fromCharCode(64 + adjustedColumnIndex); // Generate column label (A, B, C, etc.)
         newHeader.className = "header-cell";
-        newHeader.innerHTML = `<div class="hover-buttons"><button class="addColumn">+</button><button class="deleteColumn">−</button></div>`;
+        newHeader.innerHTML = `${columnLabel}<div class="hover-buttons"><button class="addColumn">+</button><button class="deleteColumn">−</button></div>`;
 
         // Insert the new header at the correct position
-        headers.insertBefore(newHeader, headers.cells[adjustedColumnIndex]);
+        const headers = spreadsheet.rows[0];
+        const headerCells = Array.from(headers.cells);
+        if (adjustedColumnIndex <= headerCells.length) {
+            headers.insertBefore(newHeader, headerCells[adjustedColumnIndex]); // Insert before the next column
+        } else {
+            headers.appendChild(newHeader); // Append to the end if it's the last column
+        }
 
         // Add a new cell to each row at the correct position
-        Array.from(spreadsheet.tBodies[0].rows).forEach(row => {
+        Array.from(spreadsheet.tBodies[0].rows).forEach((row) => {
             const newCell = document.createElement("td");
             newCell.contentEditable = "true";
-            row.insertBefore(newCell, row.cells[adjustedColumnIndex]);
+            const rowCells = Array.from(row.cells);
+            if (adjustedColumnIndex <= rowCells.length) {
+                row.insertBefore(newCell, rowCells[adjustedColumnIndex]); // Insert before the next column
+            } else {
+                row.appendChild(newCell); // Append to the end if it's the last column
+            }
         });
 
-        updateColumnLabels();
+        updateColumnLabels(); // Update column labels dynamically
         addResizingHandles(); // Reapply resizing handles to include the new column
     }
 
-    // Function to delete a row and update row labels
+    // Delete a row and update row labels
     function deleteRow(targetRow) {
         if (spreadsheet.rows.length > 2) { // Ensure at least one data row remains
             targetRow.remove();
@@ -264,11 +276,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // Function to delete a column and update column labels
+    // Delete a column and update column labels
     function deleteColumn(targetColumnIndex) {
-        if (headers.cells.length > 2) { // Ensure at least one data column remains
+        if (spreadsheet.rows[0].cells.length > 2) { // Ensure at least one data column remains
             // Delete the header cell
-            headers.deleteCell(targetColumnIndex);
+            spreadsheet.rows[0].deleteCell(targetColumnIndex);
 
             // Delete the corresponding cell in each row
             Array.from(spreadsheet.tBodies[0].rows).forEach(row => {
@@ -297,7 +309,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const headerRow = spreadsheet.rows[0];
         if (headerRow) {
             Array.from(headerRow.cells).forEach((cell, index) => {
-                if (index > 0) {
+                if (index > 0) { // Skip the row label column
                     cell.innerHTML = `${String.fromCharCode(64 + index)}<div class="hover-buttons"><button class="addColumn">+</button><button class="deleteColumn">−</button></div>`;
                     cell.className = "header-cell";
                 }
@@ -312,20 +324,18 @@ document.addEventListener("DOMContentLoaded", () => {
     document.addEventListener("click", (e) => {
         if (e.target.classList.contains("addRow")) {
             const rowIndex = Array.from(spreadsheet.tBodies[0].rows).indexOf(e.target.closest("tr"));
-            addRow(rowIndex);
-            addResizingHandles(); // Add resizing handles to the new row
+            addRow(rowIndex); // Pass the index of the clicked row
         }
         if (e.target.classList.contains("deleteRow")) {
             const targetRow = e.target.closest("tr");
             deleteRow(targetRow);
         }
         if (e.target.classList.contains("addColumn")) {
-            const columnIndex = Array.from(headers.cells).indexOf(e.target.closest("th")) - 1; // Exclude the row label column
-            addColumn(columnIndex);
-            addResizingHandles(); // Add resizing handles to the new column
+            const columnIndex = Array.from(spreadsheet.rows[0].cells).indexOf(e.target.closest("th")); // 1-based index
+            addColumn(columnIndex); // Pass the index of the clicked column
         }
         if (e.target.classList.contains("deleteColumn")) {
-            const targetColumnIndex = Array.from(headers.cells).indexOf(e.target.closest("th"));
+            const targetColumnIndex = Array.from(spreadsheet.rows[0].cells).indexOf(e.target.closest("th"));
             deleteColumn(targetColumnIndex);
         }
     });
@@ -337,53 +347,58 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Function to export the spreadsheet to CSV
     function exportToCsv() {
-        const title = document.getElementById("spreadsheetTitle").value.trim() || "Untitled Spreadsheet"; // Get the title or use a default
-        const rows = Array.from(document.querySelectorAll("#spreadsheet tbody tr"));
-        const csvContent = [
-            title, // Add the title as the first line
-            ...rows.map(row => {
-                const cells = Array.from(row.cells).slice(1); // Skip the row label
-                return cells.map(cell => cell.textContent.trim()).join(","); // Get cell values
-            })
-        ].join("\n");
+        const rows = Array.from(spreadsheet.rows);
+        const csvContent = rows.map((row, rowIndex) => {
+            return Array.from(row.cells)
+                .filter((cell, colIndex) => !(rowIndex === 0 && colIndex === 0)) // Skip the top-left corner cell
+                .filter((cell, colIndex) => rowIndex !== 0 || colIndex > 0) // Skip row labels and column headers
+                .map(cell => cell.textContent.trim()) // Get the text content of each cell
+                .join(","); // Join cells with commas
+        }).join("\n"); // Join rows with newlines
 
         const blob = new Blob([csvContent], { type: "text/csv" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-
-        // Use the title as the filename, replacing invalid characters with underscores
-        const sanitizedTitle = title.replace(/[^a-zA-Z0-9-_]/g, "_");
-        a.download = `${sanitizedTitle}.csv`;
-
+        a.download = `${getSpreadsheetTitle()}.csv`;
         a.click();
         URL.revokeObjectURL(url);
     }
 
-    // Function to import a CSV file into the spreadsheet
+    // Import a CSV file into the spreadsheet
     function importFromCsv(event) {
         const file = event.target.files[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = function (e) {
-            const csvContent = e.target.result.split("\n");
-            const title = csvContent.shift(); // Extract the first line as the title
-            document.getElementById("spreadsheetTitle").value = title; // Set the spreadsheet title
+            const csvContent = e.target.result.split("\n").map(row => row.split(","));
 
-            const rows = csvContent.map(row => row.split(","));
-            while (spreadsheet.rows.length > 1) {
-                spreadsheet.deleteRow(1); // Clear existing rows (except headers)
+            // Clear existing rows and columns
+            while (spreadsheet.rows.length > 0) {
+                spreadsheet.deleteRow(0);
             }
 
-            rows.forEach((rowValues, rowIndex) => {
+            // Rebuild the header row
+            const headerRow = spreadsheet.insertRow();
+            headerRow.id = "headers";
+            headerRow.insertCell(0); // Add an empty cell for the row labels
+            for (let i = 0; i < csvContent[0].length; i++) {
+                const headerCell = document.createElement("th");
+                headerCell.className = "header-cell";
+                headerCell.innerHTML = `${String.fromCharCode(65 + i)}<div class="hover-buttons"><button class="addColumn">+</button><button class="deleteColumn">−</button></div>`;
+                headerRow.appendChild(headerCell);
+            }
+
+            // Add rows from the CSV
+            csvContent.forEach((rowValues, rowIndex) => {
                 const newRow = spreadsheet.insertRow();
                 const rowLabel = newRow.insertCell(0);
                 rowLabel.className = "row-label";
                 rowLabel.innerHTML = `${rowIndex + 1}<div class="hover-buttons"><button class="addRow">+</button><button class="deleteRow">−</button></div>`;
 
-                rowValues.forEach((value, colIndex) => {
-                    const newCell = newRow.insertCell(colIndex + 1);
+                rowValues.forEach(value => {
+                    const newCell = newRow.insertCell();
                     newCell.contentEditable = "true";
                     newCell.textContent = value.trim();
                 });
